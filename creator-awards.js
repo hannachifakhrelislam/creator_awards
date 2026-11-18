@@ -33,7 +33,7 @@ const CA_CONFIG = {
   },
 
   /* الشعارات الرئيسية في أعلى الصفحة (الملفات في assets/logos) */
-  logos: { university: "assets/logos/university.webp", fnea: "assets/logos/fnea-guelma.webp" },
+  logos: { university: "university.webp", fnea: "fnea-guelma.webp" },
 
 
   timeline: [
@@ -73,10 +73,10 @@ const CA_CONFIG = {
 
   /* الشركاء الشرفيون (الشعارات في assets/logos) */
   partners: [
-    { name: "مديرية الخدمات الجامعية – قالمة", role: "شريك المسابقة", logo: "assets/logos/services.webp" },
-    { name: "نادي الإعلام والاتصال BICOM", role: "نادي شريك", logo: "assets/logos/bicom.webp" },
-    { name: "نادي الفنون البصرية CREATIVA", role: "نادي شريك", logo: "assets/logos/creativa.webp" },
-    { name: "نادي الإعلام الآلي TechGeeks", role: "نادي شريك", logo: "assets/logos/techgeeks.webp" }
+    { name: "مديرية الخدمات الجامعية – قالمة", role: "شريك المسابقة", logo: "services.webp" },
+    { name: "نادي الإعلام والاتصال BICOM", role: "نادي شريك", logo: "bicom.webp" },
+    { name: "نادي الفنون البصرية CREATIVA", role: "نادي شريك", logo: "creativa.webp" },
+    { name: "نادي الإعلام الآلي TechGeeks", role: "نادي شريك", logo: "techgeeks.webp" }
   ],
 
   journey: [
@@ -165,6 +165,123 @@ let skew = 0;
   if (!v.includes("T")) v += "T00:00";
   const t = new Date(/(Z|[+-]\d\d:\d\d)$/i.test(v) ? v : v + TZ).getTime();
   if (!isNaN(t)) skew = t - Date.now();
+
+/* ============================================================
+   PREMIUM INTERACTION LAYER
+   Adds visual interactions without replacing existing logic.
+   ============================================================ */
+(() => {
+  const root = document.getElementById("ca");
+  if (!root) return;
+
+  document.body.classList.add("ca-premium-ready");
+
+  // Reading progress
+  const progress = document.createElement("div");
+  progress.className = "ca-scroll-progress";
+  document.body.appendChild(progress);
+
+  const updateProgress = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    progress.style.width = max > 0 ? `${(window.scrollY / max) * 100}%` : "0%";
+  };
+  addEventListener("scroll", updateProgress, {passive:true});
+  addEventListener("resize", updateProgress);
+  updateProgress();
+
+  // Desktop spotlight
+  if (matchMedia("(pointer:fine)").matches) {
+    const spot = document.createElement("div");
+    spot.className = "ca-spotlight";
+    document.body.appendChild(spot);
+
+    let sx = 0, sy = 0, raf = 0;
+    addEventListener("pointermove", e => {
+      sx = e.clientX; sy = e.clientY;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        spot.style.left = `${sx}px`;
+        spot.style.top = `${sy}px`;
+        raf = 0;
+      });
+    }, {passive:true});
+
+    const hero = root.querySelector(".ca-hero");
+    if (hero) {
+      hero.addEventListener("pointermove", e => {
+        const r = hero.getBoundingClientRect();
+        const mx = (e.clientX - r.left) / r.width - .5;
+        const my = (e.clientY - r.top) / r.height - .5;
+        hero.style.setProperty("--mx", mx.toFixed(3));
+        hero.style.setProperty("--my", my.toFixed(3));
+      });
+      hero.addEventListener("pointerleave", () => {
+        hero.style.setProperty("--mx", "0");
+        hero.style.setProperty("--my", "0");
+      });
+    }
+  }
+
+  // Magnetic CTA buttons
+  if (matchMedia("(pointer:fine)").matches) {
+    root.querySelectorAll(".ca-btn").forEach(btn => {
+      btn.addEventListener("pointermove", e => {
+        const r = btn.getBoundingClientRect();
+        const x = (e.clientX - r.left - r.width/2) * .08;
+        const y = (e.clientY - r.top - r.height/2) * .08;
+        btn.style.transform = `translate(${x}px,${y}px)`;
+      });
+      btn.addEventListener("pointerleave", () => {
+        btn.style.transform = "";
+      });
+    });
+  }
+
+  // Premium reveal for major cards and sections; the original reveal system remains intact.
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+    const candidates = root.querySelectorAll(
+      ".ca-card,.ca-fc,.ca-pt,.ca-st,.ca-train,.ca-jny,.ca-ig,.ca-finale,.ca-reg,.ca-sec h3"
+    );
+    candidates.forEach((el, i) => {
+      if (el.classList.contains("ca-rv")) return;
+      el.classList.add("ca-premium-reveal");
+      el.style.transitionDelay = `${Math.min((i % 5) * 70, 280)}ms`;
+    });
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          io.unobserve(entry.target);
+        }
+      });
+    }, {threshold:.12});
+    candidates.forEach(el => io.observe(el));
+  }
+
+  // Subtle 3D tilt on cards.
+  if (matchMedia("(pointer:fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    root.querySelectorAll(".ca-card,.ca-fc,.ca-pt").forEach(card => {
+      card.addEventListener("pointermove", e => {
+        const r = card.getBoundingClientRect();
+        const rx = ((e.clientY-r.top)/r.height-.5) * -3.5;
+        const ry = ((e.clientX-r.left)/r.width-.5) * 3.5;
+        card.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-5px)`;
+      });
+      card.addEventListener("pointerleave", () => {
+        card.style.transform = "";
+      });
+    });
+  }
+
+  // Keep the premium layer resilient if the existing app rebuilds a section.
+  const observer = new MutationObserver(() => {
+    root.querySelectorAll(".ca-btn:not([data-premium-bound])").forEach(btn => {
+      btn.dataset.premiumBound = "1";
+    });
+  });
+  observer.observe(root, {childList:true,subtree:true});
+})();
+
 })();
 const now = () => Date.now() + skew;
 
