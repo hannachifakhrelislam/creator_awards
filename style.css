@@ -1,0 +1,7 @@
+/* أساسيات الموقع: التصميم الكامل في creator-awards.css */
+*{box-sizing:border-box;margin:0}
+html{scroll-padding-top:12px}
+body{background:#060807;color:#f3efe3;font:400 16px/1.7 "IBM Plex Sans Arabic",Tahoma,sans-serif;min-height:100vh;overflow-x:hidden}
+img{max-width:100%}
+.logo-fb{display:grid;place-items:center;width:64px;height:64px;border-radius:16px;background:#17694a;color:#fff;font:700 15px "Reem Kufi"}
+noscript{display:block;padding:60px 20px;text-align:center}
