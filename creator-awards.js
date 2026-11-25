@@ -16,7 +16,7 @@ const CA_CONFIG = {
   /* true: التسجيل لا يعمل إلا بين regOpen و regClose. false: يعمل دائما (للتجربة) */
   enforceRegistrationWindow: true,
 
-  /* للاختبار فقط: افتح الصفحة بـ ?ca_now=2026-11-16T12:00#creator-awards لمحاكاة تاريخ.
+  /* للاختبار فقط: افتح الصفحة بـ ?ca_now=2026-11-16T12:00 لمحاكاة تاريخ.
      اجعلها null قبل النشر النهائي لتعطيل الميزة. */
   debugNowParam: "ca_now",
 
@@ -28,7 +28,7 @@ const CA_CONFIG = {
 
   /* التواريخ الرسمية (YYYY-MM-DD) */
   dates: {
-    regOpen: "2026-11-15", regClose: "2026-11-26", training: "2026-11-29", deadline: "2026-12-05",
+    regOpen: "2026-11-15", regClose: "2026-11-28", training: "2026-11-29", deadline: "2026-12-05",
     top8: "2026-12-06", finale: "2026-12-08"
   },
 
@@ -165,132 +165,17 @@ let skew = 0;
   if (!v.includes("T")) v += "T00:00";
   const t = new Date(/(Z|[+-]\d\d:\d\d)$/i.test(v) ? v : v + TZ).getTime();
   if (!isNaN(t)) skew = t - Date.now();
-
-/* ============================================================
-   PREMIUM INTERACTION LAYER
-   Adds visual interactions without replacing existing logic.
-   ============================================================ */
-(() => {
-  const root = document.getElementById("ca");
-  if (!root) return;
-
-  document.body.classList.add("ca-premium-ready");
-
-  // Reading progress
-  const progress = document.createElement("div");
-  progress.className = "ca-scroll-progress";
-  document.body.appendChild(progress);
-
-  const updateProgress = () => {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    progress.style.width = max > 0 ? `${(window.scrollY / max) * 100}%` : "0%";
-  };
-  addEventListener("scroll", updateProgress, {passive:true});
-  addEventListener("resize", updateProgress);
-  updateProgress();
-
-  // Desktop spotlight
-  if (matchMedia("(pointer:fine)").matches) {
-    const spot = document.createElement("div");
-    spot.className = "ca-spotlight";
-    document.body.appendChild(spot);
-
-    let sx = 0, sy = 0, raf = 0;
-    addEventListener("pointermove", e => {
-      sx = e.clientX; sy = e.clientY;
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        spot.style.left = `${sx}px`;
-        spot.style.top = `${sy}px`;
-        raf = 0;
-      });
-    }, {passive:true});
-
-    const hero = root.querySelector(".ca-hero");
-    if (hero) {
-      hero.addEventListener("pointermove", e => {
-        const r = hero.getBoundingClientRect();
-        const mx = (e.clientX - r.left) / r.width - .5;
-        const my = (e.clientY - r.top) / r.height - .5;
-        hero.style.setProperty("--mx", mx.toFixed(3));
-        hero.style.setProperty("--my", my.toFixed(3));
-      });
-      hero.addEventListener("pointerleave", () => {
-        hero.style.setProperty("--mx", "0");
-        hero.style.setProperty("--my", "0");
-      });
-    }
-  }
-
-  // Magnetic CTA buttons
-  if (matchMedia("(pointer:fine)").matches) {
-    root.querySelectorAll(".ca-btn").forEach(btn => {
-      btn.addEventListener("pointermove", e => {
-        const r = btn.getBoundingClientRect();
-        const x = (e.clientX - r.left - r.width/2) * .08;
-        const y = (e.clientY - r.top - r.height/2) * .08;
-        btn.style.transform = `translate(${x}px,${y}px)`;
-      });
-      btn.addEventListener("pointerleave", () => {
-        btn.style.transform = "";
-      });
-    });
-  }
-
-  // Premium reveal for major cards and sections; the original reveal system remains intact.
-  if (!matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
-    const candidates = root.querySelectorAll(
-      ".ca-card,.ca-fc,.ca-pt,.ca-st,.ca-train,.ca-jny,.ca-ig,.ca-finale,.ca-reg,.ca-sec h3"
-    );
-    candidates.forEach((el, i) => {
-      if (el.classList.contains("ca-rv")) return;
-      el.classList.add("ca-premium-reveal");
-      el.style.transitionDelay = `${Math.min((i % 5) * 70, 280)}ms`;
-    });
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          io.unobserve(entry.target);
-        }
-      });
-    }, {threshold:.12});
-    candidates.forEach(el => io.observe(el));
-  }
-
-  // Subtle 3D tilt on cards.
-  if (matchMedia("(pointer:fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    root.querySelectorAll(".ca-card,.ca-fc,.ca-pt").forEach(card => {
-      card.addEventListener("pointermove", e => {
-        const r = card.getBoundingClientRect();
-        const rx = ((e.clientY-r.top)/r.height-.5) * -3.5;
-        const ry = ((e.clientX-r.left)/r.width-.5) * 3.5;
-        card.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-5px)`;
-      });
-      card.addEventListener("pointerleave", () => {
-        card.style.transform = "";
-      });
-    });
-  }
-
-  // Keep the premium layer resilient if the existing app rebuilds a section.
-  const observer = new MutationObserver(() => {
-    root.querySelectorAll(".ca-btn:not([data-premium-bound])").forEach(btn => {
-      btn.dataset.premiumBound = "1";
-    });
-  });
-  observer.observe(root, {childList:true,subtree:true});
-})();
-
 })();
 const now = () => Date.now() + skew;
 
 /* ====== مراحل المسابقة (مشتقة من CA_CONFIG.dates) ====== */
 const PHASES = [
   { id: "pre", from: -Infinity, icon: "⏳", label: "التسجيل يبدأ قريبًا", sub: "افتتاح التسجيلات يوم {regOpen}", target: startOf(DT.regOpen), cd: "يفتح التسجيل بعد" },
-  { id: "reg", from: startOf(DT.regOpen), icon: "🔴", label: "التسجيلات مفتوحة", sub: "يغلق التسجيل يوم {regClose}", target: afterDay(DT.regClose), cd: "يغلق التسجيل بعد", live: true },
+  { id: "reg", from: startOf(DT.regOpen), icon: "🔴", label: "التسجيلات مفتوحة", sub: "يغلق التسجيل يوم {regClose}", target: afterDay(DT.regClose), cd: "يغلق التسجيل بعد", live: true,
+    urgent: { within: 72, icon: "⏳", label: "آخر أجل للتسجيل: {regClose}" } },
   { id: "gap", from: afterDay(DT.regClose), icon: "🎓", label: "المرحلة القادمة: الدورة التكوينية — {training}", sub: "أُغلقت التسجيلات. تأكد أنك تتابع صفحة Instagram.", target: startOf(DT.training), cd: "تنطلق الدورة بعد" },
-  { id: "prod", from: startOf(DT.training), icon: "🎬", label: "المنافسة جارية", sub: "استقبال الأعمال عبر Instagram حتى {deadline}", target: afterDay(DT.deadline), cd: "آخر أجل لإرسال الأعمال بعد", live: true,
+  { id: "trainday", from: startOf(DT.training), icon: "🎓", label: "الدورة التكوينية اليوم — حضورها إجباري", sub: "بعدها يبدأ استقبال الأعمال عبر Instagram", target: afterDay(DT.training), cd: "يبدأ استقبال الأعمال بعد", live: true },
+  { id: "prod", from: afterDay(DT.training), icon: "🎬", label: "المنافسة جارية", sub: "استقبال الأعمال عبر Instagram حتى {deadline}", target: afterDay(DT.deadline), cd: "آخر أجل لإرسال الأعمال بعد", live: true,
     urgent: { within: 72, icon: "⏰", label: "آخر أجل لإرسال الأعمال: {deadline}" } },
   { id: "top8", from: afterDay(DT.deadline), icon: "🏆", label: "تم نشر أفضل 08 أعمال", sub: "حفل الاختتام يوم {finale}", target: startOf(DT.finale), cd: "حفل الاختتام بعد" },
   { id: "finale", from: startOf(DT.finale), icon: "🎉", label: "فعاليات Creator Awards جارية", sub: "حفل الاختتام اليوم", target: afterDay(DT.finale), cd: "تنتهي فعاليات اليوم بعد", live: true },
@@ -656,12 +541,43 @@ function paint() { const t = now(); paintStatus(t); paintTimeline(t); paintGate(
 function start() { if (active) return; active = true; paint(); timer = setInterval(paint, 1000); }
 function stop() { active = false; clearInterval(timer); }
 
+/* ====== طبقة التفاعلات الفاخرة (تعمل بعد بناء الصفحة، وتحترم reduced-motion) ====== */
+function premium() {
+  document.body.classList.add("ca-premium-ready");
+  const bar = document.createElement("div"); bar.className = "ca-scroll-progress"; bar.setAttribute("aria-hidden", "true"); document.body.appendChild(bar);
+  const upd = () => { const max = root.scrollHeight - innerHeight; bar.style.width = max > 0 ? (scrollY / max * 100) + "%" : "0%"; };
+  addEventListener("scroll", upd, { passive: true }); addEventListener("resize", upd); upd();
+  if (reduce) return;
+  /* ظهور فاخر للعناصر التي لا تملك ca-rv (مثل قسم الحفل) */
+  if ("IntersectionObserver" in window) {
+    const els = $$(".ca-card,.ca-fc,.ca-pt,.ca-st,.ca-train,.ca-jny,.ca-ig,.ca-finale,.ca-reg,.ca-sec h3", ca).filter(el => !el.classList.contains("ca-rv") && !el.classList.contains("ca-sr"));
+    els.forEach((el, i) => { el.classList.add("ca-premium-reveal"); el.style.transitionDelay = `${Math.min((i % 5) * 70, 280)}ms`; });
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("is-visible"); io.unobserve(e.target); } }), { threshold: .12 });
+    els.forEach(el => io.observe(el));
+  }
+  if (!matchMedia("(pointer:fine)").matches) return;
+  /* بقعة ضوء + أزرار مغناطيسية + ميلان خفيف للبطاقات (بتفويض الأحداث ليصمد أمام إعادة بناء الأقسام) */
+  const spot = document.createElement("div"); spot.className = "ca-spotlight"; spot.setAttribute("aria-hidden", "true"); document.body.appendChild(spot);
+  let sx = 0, sy = 0, raf = 0, last = null;
+  addEventListener("pointermove", e => {
+    sx = e.clientX; sy = e.clientY;
+    if (!raf) raf = requestAnimationFrame(() => { spot.style.left = sx + "px"; spot.style.top = sy + "px"; raf = 0; });
+    const el = e.target.closest ? e.target.closest(".ca-btn,.ca-card,.ca-fc,.ca-pt") : null;
+    if (last && last !== el) { last.style.transform = ""; last = null; }
+    if (!el) return; last = el;
+    const r = el.getBoundingClientRect();
+    if (el.classList.contains("ca-btn")) el.style.transform = `translate(${((e.clientX - r.left - r.width / 2) * .08).toFixed(1)}px,${((e.clientY - r.top - r.height / 2) * .08).toFixed(1)}px)`;
+    else el.style.transform = `perspective(900px) rotateX(${(((e.clientY - r.top) / r.height - .5) * -3.5).toFixed(2)}deg) rotateY(${(((e.clientX - r.left) / r.width - .5) * 3.5).toFixed(2)}deg) translateY(-5px)`;
+  }, { passive: true });
+  document.addEventListener("pointerleave", () => { if (last) { last.style.transform = ""; last = null; } });
+}
+
 function init() {
   ready = true; build(); measure();
   try { const d = JSON.parse(store.get(K) || "null"); if (d && d.F) { F = { university: UNI, ...d.F }; step = Math.min(d.step || 0, STEPS.length - 2); } } catch (e) { }
   rvIO = "IntersectionObserver" in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); if (e.target.id === "ca-tl") lineFill(); rvIO.unobserve(e.target); } }), { threshold: .12 }) : null;
   watch($$(".ca-rv,[data-watch]", ca));
-  regEvents(); paintJury(); journey(); counters(); hero(); spy();
+  regEvents(); paintJury(); journey(); counters(); hero(); spy(); premium();
   ca.addEventListener("click", e => {
     const a = e.target.closest("[data-acc]");
     if (a) { const o = a.getAttribute("aria-expanded") !== "true"; a.setAttribute("aria-expanded", o); const c = a.closest(".ca-acc"); c.classList.toggle("open", o); $(".ca-more", c).toggleAttribute("inert", !o); }
