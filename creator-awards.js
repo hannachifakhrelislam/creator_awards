@@ -18,7 +18,7 @@ const CA_CONFIG = {
 
   /* للاختبار فقط: افتح الصفحة بـ ?ca_now=2026-11-16T12:00 لمحاكاة تاريخ.
      اجعلها null قبل النشر النهائي لتعطيل الميزة. */
-  debugNowParam: "ca_now",
+  debugNowParam: null,
 
   /* Instagram: إذا تركت url فارغا يُبنى الرابط تلقائيا من الحساب. ضع الرابط الرسمي هنا لتثبيته. */
   instagram: { handle: "@fnea_guelma", url: "https://www.instagram.com/fnea_guelma/" },
@@ -28,7 +28,7 @@ const CA_CONFIG = {
 
   /* التواريخ الرسمية (YYYY-MM-DD) */
   dates: {
-    regOpen: "2026-11-15", regClose: "2026-11-28", training: "2026-11-29", deadline: "2026-12-05",
+    regOpen: "2026-11-15", regClose: "2026-11-30", training: "2026-11-29", deadline: "2026-12-05",
     top8: "2026-12-06", finale: "2026-12-08"
   },
 
@@ -152,6 +152,8 @@ const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "ماي�
 const fmt = d => { const p = d.split("-"); return `${p[2]} ${MONTHS[+p[1] - 1]}`; };
 const startOf = d => new Date(`${d}T00:00:00${TZ}`).getTime();
 const afterDay = d => new Date(`${d}T23:59:59.999${TZ}`).getTime() + 1;
+/* ترتيب البرنامج زمنيًا مهما تغيّر ترتيب التواريخ في الإعدادات (مثل دورة قبل غلق التسجيل) */
+CFG.timeline.sort((a, b) => startOf(DT[a.date]) - startOf(DT[b.date]));
 const ig = () => `<bdi dir="ltr">${esc(CFG.instagram.handle)}</bdi>`;
 const tpl = s => String(s).replace(/\{(\w+)\}/g, (m, k) => k === "ig" ? ig() : DT[k] ? fmt(DT[k]) : m);
 const plain = s => tpl(s).replace(/<[^>]+>/g, "");
@@ -169,19 +171,32 @@ let skew = 0;
 const now = () => Date.now() + skew;
 
 /* ====== مراحل المسابقة (مشتقة من CA_CONFIG.dates) ====== */
+const REG_FROM = startOf(DT.regOpen), REG_TO = afterDay(DT.regClose);
+const TRAIN_FROM = startOf(DT.training), TRAIN_TO = afterDay(DT.training);
+const DEADLINE_TO = afterDay(DT.deadline);
+const FINALE_FROM = startOf(DT.finale), FINALE_TO = afterDay(DT.finale);
+/* الدورة التكوينية داخل فترة التسجيل (قبل غلق التسجيل) */
+const TRAIN_IN_REG = TRAIN_FROM < REG_TO;
+const REG_PHASE = { id: "reg", from: REG_FROM, icon: "🔴", label: "التسجيلات مفتوحة", sub: "يغلق التسجيل يوم {regClose}", target: REG_TO, cd: "يغلق التسجيل بعد", live: true,
+  urgent: { within: 72, icon: "⏳", label: "آخر أجل للتسجيل: {regClose}" } };
 const PHASES = [
-  { id: "pre", from: -Infinity, icon: "⏳", label: "التسجيل يبدأ قريبًا", sub: "افتتاح التسجيلات يوم {regOpen}", target: startOf(DT.regOpen), cd: "يفتح التسجيل بعد" },
-  { id: "reg", from: startOf(DT.regOpen), icon: "🔴", label: "التسجيلات مفتوحة", sub: "يغلق التسجيل يوم {regClose}", target: afterDay(DT.regClose), cd: "يغلق التسجيل بعد", live: true,
-    urgent: { within: 72, icon: "⏳", label: "آخر أجل للتسجيل: {regClose}" } },
-  { id: "gap", from: afterDay(DT.regClose), icon: "🎓", label: "المرحلة القادمة: الدورة التكوينية — {training}", sub: "أُغلقت التسجيلات. تأكد أنك تتابع صفحة Instagram.", target: startOf(DT.training), cd: "تنطلق الدورة بعد" },
-  { id: "trainday", from: startOf(DT.training), icon: "🎓", label: "الدورة التكوينية اليوم — حضورها إجباري", sub: "بعدها يبدأ استقبال الأعمال عبر Instagram", target: afterDay(DT.training), cd: "يبدأ استقبال الأعمال بعد", live: true },
-  { id: "prod", from: afterDay(DT.training), icon: "🎬", label: "المنافسة جارية", sub: "استقبال الأعمال عبر Instagram حتى {deadline}", target: afterDay(DT.deadline), cd: "آخر أجل لإرسال الأعمال بعد", live: true,
+  { id: "pre", from: -Infinity, until: REG_FROM, icon: "⏳", label: "التسجيل يبدأ قريبًا", sub: "افتتاح التسجيلات يوم {regOpen}", target: REG_FROM, cd: "يفتح التسجيل بعد" },
+  ...(TRAIN_IN_REG ? [
+    { ...REG_PHASE, until: TRAIN_FROM },
+    { id: "trainday", from: TRAIN_FROM, until: Math.min(TRAIN_TO, REG_TO), icon: "🎓", label: "الدورة التكوينية اليوم — والتسجيل مفتوح حتى {regClose}", sub: "حضور الدورة إجباري. يغلق التسجيل يوم {regClose}.", target: REG_TO, cd: "يغلق التسجيل بعد", live: true },
+    ...(TRAIN_TO < REG_TO ? [{ id: "reglast", from: TRAIN_TO, until: REG_TO, icon: "⏳", label: "آخر أجل للتسجيل: {regClose}", sub: "تُغلق التسجيلات اليوم. تأكد من متابعة صفحة {ig}.", target: REG_TO, cd: "يغلق التسجيل بعد", live: true }] : [])
+  ] : [
+    { ...REG_PHASE, until: REG_TO },
+    { id: "gap", from: REG_TO, until: TRAIN_FROM, icon: "🎓", label: "المرحلة القادمة: الدورة التكوينية — {training}", sub: "أُغلقت التسجيلات. تأكد أنك تتابع صفحة Instagram.", target: TRAIN_FROM, cd: "تنطلق الدورة بعد" },
+    { id: "trainday", from: TRAIN_FROM, until: TRAIN_TO, icon: "🎓", label: "الدورة التكوينية اليوم — حضورها إجباري", sub: "بعدها يبدأ استقبال الأعمال عبر Instagram", target: TRAIN_TO, cd: "يبدأ استقبال الأعمال بعد", live: true }
+  ]),
+  { id: "prod", from: Math.max(REG_TO, TRAIN_TO), until: DEADLINE_TO, icon: "🎬", label: "المنافسة جارية", sub: "استقبال الأعمال عبر Instagram حتى {deadline}", target: DEADLINE_TO, cd: "آخر أجل لإرسال الأعمال بعد", live: true,
     urgent: { within: 72, icon: "⏰", label: "آخر أجل لإرسال الأعمال: {deadline}" } },
-  { id: "top8", from: afterDay(DT.deadline), icon: "🏆", label: "تم نشر أفضل 08 أعمال", sub: "حفل الاختتام يوم {finale}", target: startOf(DT.finale), cd: "حفل الاختتام بعد" },
-  { id: "finale", from: startOf(DT.finale), icon: "🎉", label: "فعاليات Creator Awards جارية", sub: "حفل الاختتام اليوم", target: afterDay(DT.finale), cd: "تنتهي فعاليات اليوم بعد", live: true },
-  { id: "end", from: afterDay(DT.finale), icon: "🏆", label: "تم اختتام UM1945 Creator Awards", sub: "شكرًا لكل المشاركين.", target: null }
+  { id: "top8", from: DEADLINE_TO, until: FINALE_FROM, icon: "🏆", label: "تم نشر أفضل 08 أعمال", sub: "حفل الاختتام يوم {finale}", target: FINALE_FROM, cd: "حفل الاختتام بعد" },
+  { id: "finale", from: FINALE_FROM, until: FINALE_TO, icon: "🎉", label: "فعاليات Creator Awards جارية", sub: "حفل الاختتام اليوم", target: FINALE_TO, cd: "تنتهي فعاليات اليوم بعد", live: true },
+  { id: "end", from: FINALE_TO, icon: "🏆", label: "تم اختتام UM1945 Creator Awards", sub: "شكرًا لكل المشاركين.", target: null }
 ];
-const phaseAt = t => PHASES.filter(p => t >= p.from).pop();
+const phaseAt = t => PHASES.find(p => t >= p.from && t < (p.until ?? Infinity)) || PHASES[PHASES.length - 1];
 
 /* ====== بناء الصفحة ====== */
 let accN = 0;
@@ -521,7 +536,10 @@ function regEvents() {
     try {
       await fetch(CFG.scriptUrl, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(p) });
       store.set(DONE, "1"); store.del(K);
-      reg.innerHTML = notice("✓", "تم استلام مشاركتك", `الخطوة التالية: تابع صفحة ${ig()} وأرسل لها رسالة «creator»، ثم احضر الدورة التكوينية الإجبارية يوم ${fmt(DT.training)}.`);
+      const afterTraining = now() >= afterDay(DT.training);
+      reg.innerHTML = notice("✓", "تم استلام مشاركتك", afterTraining
+        ? `تابع صفحة ${ig()} وأرسل لها رسالة «creator»، ثم أرسل عملك عبر الصفحة قبل ${fmt(DT.deadline)} على الساعة 23:59.`
+        : `الخطوة التالية: تابع صفحة ${ig()} وأرسل لها رسالة «creator»، ثم احضر الدورة التكوينية الإجبارية يوم ${fmt(DT.training)}.`);
     } catch (err) { sending = false; b.disabled = false; b.textContent = "تأكيد وإرسال المشاركة"; toast("تعذر الإرسال. تحقق من اتصالك وأعد المحاولة."); }
   });
 }
